@@ -1,6 +1,8 @@
 import streamlit as st
 import qrcode
 from io import BytesIO
+import pandas as pd
+import altair as alt
 
 # -----------------------------
 # Page config
@@ -105,10 +107,30 @@ def load_quiz():
                 ("Research and consider bigger position", 4),
             ],
         },
+        {
+            "id": "q9",
+            "question": "Q9. If the market drops, you feel…",
+            "options": [
+                ("I want to exit quickly", 0),
+                ("I stay calm if I have a plan", 2),
+                ("I feel excited to buy at lower prices", 4),
+            ],
+        },
+        {
+            "id": "q10",
+            "question": "Q10. Your main investing goal is…",
+            "options": [
+                ("Safety and stability", 0),
+                ("Steady long-term growth", 2),
+                ("Max growth and big outcomes", 4),
+            ],
+        },
     ]
 
+# -----------------------------
+# Scoring / Result logic
+# -----------------------------
 def score_to_result(total_score: int, max_score: int) -> dict:
-    # Risk score scaled to 0–100
     risk_score = round((total_score / max_score) * 100)
 
     if risk_score <= 25:
@@ -126,14 +148,14 @@ def score_to_result(total_score: int, max_score: int) -> dict:
     elif risk_score <= 80:
         investor_type = "Growth Planner"
         portfolio = {"Cash": 10, "Bonds": 20, "Stocks (Index)": 70}
-        tip = "Use diversification and a simple rule: rebalance quarterly."
+        tip = "Diversify and rebalance quarterly."
         watchout = "FOMO risk: chasing hype during bull markets."
         strength = "Long-term focus. Can handle normal volatility."
     else:
         investor_type = "Bold Explorer (Aggressive)"
         portfolio = {"Cash": 5, "Bonds": 10, "Stocks (Index)": 70, "Satellite (Themes)": 15}
-        tip = "Define clear rules: position size + stop-loss + review schedule."
-        watchout = "Overconfidence risk: big drawdowns if concentration is too high."
+        tip = "Define rules: position size + stop-loss + review schedule."
+        watchout = "Overconfidence risk: big drawdowns if too concentrated."
         strength = "High risk tolerance. Strong conviction-driven action."
 
     return {
@@ -145,12 +167,79 @@ def score_to_result(total_score: int, max_score: int) -> dict:
         "watchout": watchout,
     }
 
-def render_portfolio(portfolio: dict):
-    st.write("**Sample Portfolio (for demo)**")
-    cols = st.columns(len(portfolio))
-    for i, (k, v) in enumerate(portfolio.items()):
-        with cols[i]:
-            st.metric(k, f"{v}%")
+# -----------------------------
+# Pretty Charts (Altair)
+# -----------------------------
+def risk_gauge(score: int, title: str = "Risk Score (0–100)"):
+    score = max(0, min(100, int(score)))
+
+    base = pd.DataFrame({
+        "start": [0, 25, 50, 75],
+        "end":   [25, 50, 75, 100],
+        "label": ["Conservative", "Balanced", "Growth", "Aggressive"]
+    })
+
+    bands = alt.Chart(base).mark_arc(innerRadius=70, outerRadius=100).encode(
+        theta=alt.Theta("start:Q", stack=None),
+        theta2="end:Q",
+        color=alt.Color("label:N", legend=None)
+    )
+
+    pointer_df = pd.DataFrame({"start": [max(score - 1, 0)], "end": [score]})
+    pointer = alt.Chart(pointer_df).mark_arc(
+        innerRadius=65, outerRadius=112
+    ).encode(
+        theta=alt.Theta("start:Q", stack=None),
+        theta2="end:Q",
+        color=alt.value("black")
+    )
+
+    text = alt.Chart(pd.DataFrame({"text": [f"{score}/100"]})).mark_text(
+        size=34, fontWeight="bold"
+    ).encode(text="text:N")
+
+    chart = (bands + pointer + text).properties(
+        width=320, height=220, title=title
+    )
+    return chart
+
+
+def portfolio_donut(portfolio: dict, title: str = "Sample Portfolio"):
+    if not portfolio or sum(portfolio.values()) <= 0:
+        portfolio = {"Cash": 100}
+
+    df = pd.DataFrame({
+        "Asset": list(portfolio.keys()),
+        "Weight": list(portfolio.values())
+    })
+
+    donut = alt.Chart(df).mark_arc(innerRadius=70, outerRadius=120).encode(
+        theta=alt.Theta("Weight:Q"),
+        color=alt.Color("Asset:N", legend=alt.Legend(title=None)),
+        tooltip=["Asset:N", "Weight:Q"]
+    ).properties(width=320, height=260, title=title)
+
+    return donut
+
+
+def contribution_bar(contrib: dict, title: str = "Why you got this result"):
+    if not contrib:
+        contrib = {"No data": 0}
+
+    df = pd.DataFrame({
+        "Question": list(contrib.keys()),
+        "Impact": list(contrib.values())
+    }).sort_values("Impact", ascending=False)
+
+    df = df.head(8)
+
+    bar = alt.Chart(df).mark_bar().encode(
+        x=alt.X("Impact:Q", title="Impact (higher = more risky)"),
+        y=alt.Y("Question:N", sort="-x", title=None),
+        tooltip=["Question:N", "Impact:Q"]
+    ).properties(width=520, height=260, title=title)
+
+    return bar
 
 # -----------------------------
 # Sidebar: Demo Controls
@@ -162,16 +251,16 @@ if st.sidebar.button("🔄 Reset Quiz (救命鍵)"):
     st.session_state.clear()
     st.rerun()
 
-st.sidebar.caption("Tip: Demo Mode ON = 更穩、更不容易當機。")
+st.sidebar.caption("Tip: Demo Mode ON = more stable for live demos.")
 
 # -----------------------------
-# App URL (QR code uses this)
-# - Cloud: set APP_URL in Streamlit Secrets
-# - Local: fallback to localhost
+# App URL (QR uses this)
+# Cloud: set APP_URL in Streamlit Secrets
+# Local: fallback to localhost
 # -----------------------------
 APP_URL = st.secrets.get("APP_URL", "http://localhost:8501")
 
-# Optional: hide Streamlit UI for cleaner demo
+# Hide Streamlit chrome in demo mode (cleaner)
 if DEMO_MODE:
     st.markdown(
         """
@@ -193,87 +282,88 @@ st.caption("Educational demo only — not financial advice.")
 with st.expander("📌 How to Play (1 min)"):
     st.write(
         """
-1) Answer 8 quick questions  
+1) Answer 10 quick questions  
 2) Tap **Submit**  
-3) Get your **Risk Score**, **Investor Type**, and a **sample portfolio** + **one action tip**  
+3) Get your **Risk Score**, **Investor Type**, a **sample portfolio**, and **one action tip**  
 """
     )
 
-# --- QR Section
+# QR Section
 st.subheader("📱 Scan to Play")
-
 qr_buf = make_qr_image(APP_URL)
 st.image(qr_buf, width=240)
-st.markdown(f"[Open link]({APP_URL})")
+st.markdown(f"**Share link:** {APP_URL}")
 
-# If app is running locally, help user show a LAN URL hint
 if "localhost" in APP_URL or "127.0.0.1" in APP_URL:
     st.info(
-        "你現在的 QR 連到 localhost（只有你電腦自己看得到）。\n\n"
-        "✅ 要讓手機掃得到：你需要 **雲端網址**（Streamlit Cloud）或同一個 Wi-Fi 下的 **Network URL**。\n"
-        "（AI Fair 建議：直接用 Streamlit Cloud 最穩）"
+        "Your QR is pointing to localhost (only your computer can open it).\n\n"
+        "✅ For AI Fair: set APP_URL in Streamlit Cloud Secrets to your public https link."
     )
 
 st.markdown("---")
 
-# -----------------------------
-# Quiz Form (submit-based)
-# -----------------------------
+# Load quiz + compute max score
 quiz = load_quiz()
 max_score = sum(max(opt[1] for opt in q["options"]) for q in quiz)
 
-# Demo: instant result button
+# Demo: one-click result
 if DEMO_MODE:
-    cols = st.columns([1, 1, 2])
+    cols = st.columns([1, 2, 3])
     with cols[0]:
         if st.button("⚡ Instant Demo Result"):
-            # pick middle-high answers to show a nice result
             st.session_state.demo_answers = {q["id"]: q["options"][-1][0] for q in quiz}
-            st.session_state.submitted = True
+            st.session_state.force_submit = True
             st.rerun()
-    with cols[1]:
-        st.write("")  # spacer
 
-# Collect answers
 default_answers = st.session_state.get("demo_answers", {})
 
+# -----------------------------
+# Quiz Form (submit-based)
+# -----------------------------
 with st.form("quiz_form"):
     st.subheader("✅ Take the Quiz")
-
     answers = {}
+
     for q in quiz:
         labels = [x[0] for x in q["options"]]
-        # default selection if demo_answers exists
         if q["id"] in default_answers:
             index = labels.index(default_answers[q["id"]])
         else:
             index = 0
-
         answers[q["id"]] = st.radio(q["question"], labels, index=index, key=f"radio_{q['id']}")
 
     submitted = st.form_submit_button("✅ Submit")
 
 # -----------------------------
-# Result Rendering (safe)
+# Results (safe render)
 # -----------------------------
 try:
-    submitted_flag = submitted or st.session_state.get("submitted", False)
-    if submitted_flag:
-        # map label -> score
+    do_submit = submitted or st.session_state.get("force_submit", False)
+
+    if do_submit:
         total = 0
+        question_contrib = {}
+
+        # total score + per-question contribution
         for q in quiz:
             chosen_label = answers[q["id"]]
             score_map = dict(q["options"])
-            total += score_map[chosen_label]
+            s = score_map[chosen_label]  # 0/2/4
+            total += s
+
+            short_q = q["question"].split(". ", 1)[-1]  # remove "Q1. "
+            question_contrib[short_q] = s
 
         result = score_to_result(total, max_score)
+        risk_score = result["risk_score"]
 
         st.markdown("---")
         st.header("🎯 Your Result")
 
+        # Top metrics
         c1, c2 = st.columns([1, 1])
         with c1:
-            st.metric("Risk Score", result["risk_score"])
+            st.metric("Risk Score", f"{risk_score}/100")
         with c2:
             st.write(f"**Investor Type:** {result['investor_type']}")
 
@@ -282,14 +372,29 @@ try:
         st.write(f"⚠️ **Watch out:** {result['watchout']}")
         st.write(f"💡 **One action tip:** {result['tip']}")
 
-        st.write("")
-        render_portfolio(result["portfolio"])
+        # Charts dashboard
+        st.markdown("## 📊 Your Dashboard")
+
+        cc1, cc2 = st.columns([1, 1])
+        with cc1:
+            st.altair_chart(risk_gauge(risk_score, title="Risk Score"), use_container_width=True)
+        with cc2:
+            st.altair_chart(portfolio_donut(result["portfolio"], title="Sample Portfolio"), use_container_width=True)
+
+        st.altair_chart(contribution_bar(question_contrib, title="Why you got this result"), use_container_width=True)
+
+        # Quick “Top Drivers” text (nice for explainability)
+        top2 = sorted(question_contrib.items(), key=lambda x: x[1], reverse=True)[:2]
+        st.markdown("### 🔍 Top 2 Risk Drivers")
+        for i, (qtext, val) in enumerate(top2, start=1):
+            st.write(f"{i}. **{qtext}** (impact: {val})")
 
         st.markdown("---")
         st.caption("Made for AI Fair demo. Educational use only.")
 
         # clear one-time flags
-        st.session_state.submitted = False
+        st.session_state.force_submit = False
+        st.session_state.demo_answers = {}
 
 except Exception:
     st.error("Oops! Something went wrong. Please tap **Reset Quiz** and try again 🙏")
