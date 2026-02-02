@@ -9,7 +9,7 @@ from io import BytesIO
 st.set_page_config(page_title="AI Investor Style Quiz", layout="centered")
 
 # Fair 當天要換成你的區網 IP
-APP_URL = "http://localhost:8501"
+APP_URL = "https://ai-investor-quiz.streamlit.app"
 
 # -----------------------------
 # QUIZ QUESTIONS (10)
