@@ -383,15 +383,7 @@ try:
 
         st.altair_chart(contribution_bar(question_contrib, title="Why you got this result"), use_container_width=True)
 
-        # Quick “Top Drivers” text (nice for explainability)
-        top2 = sorted(question_contrib.items(), key=lambda x: x[1], reverse=True)[:2]
-        st.markdown("### 🔍 Top 2 Risk Drivers")
-        for i, (qtext, val) in enumerate(top2, start=1):
-            st.write(f"{i}. **{qtext}** (impact: {val})")
-
-        st.markdown("---")
-        st.caption("Made for AI Fair demo. Educational use only.")
-
+       
         # clear one-time flags
         st.session_state.force_submit = False
         st.session_state.demo_answers = {}
