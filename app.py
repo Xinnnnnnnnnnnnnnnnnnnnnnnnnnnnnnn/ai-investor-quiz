@@ -14,14 +14,48 @@ st.set_page_config(
 )
 
 # -----------------------------
-# Force WHITE background (even in themes)
+# FORCE WHITE BACKGROUND + BLACK TEXT
 # -----------------------------
 st.markdown(
     """
     <style>
-      .stApp { background-color: #ffffff; }
-      [data-testid="stAppViewContainer"] { background-color: #ffffff; }
-      [data-testid="stHeader"] { background: rgba(255,255,255,0); }
+
+    /* Background */
+    .stApp {
+        background-color: #ffffff !important;
+    }
+
+    [data-testid="stAppViewContainer"] {
+        background-color: #ffffff !important;
+    }
+
+    [data-testid="stSidebar"] {
+        background-color: #f7f7f7 !important;
+    }
+
+    /* Text color */
+    html, body, [class*="css"] {
+        color: #000000 !important;
+    }
+
+    h1, h2, h3, h4, h5, h6, label, span, p, div {
+        color: #000000 !important;
+    }
+
+    /* Metric numbers */
+    [data-testid="stMetricValue"] {
+        color: #000000 !important;
+    }
+
+    [data-testid="stMetricLabel"] {
+        color: #444444 !important;
+    }
+
+    /* Remove Streamlit chrome in demo */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+
     </style>
     """,
     unsafe_allow_html=True,
@@ -44,7 +78,6 @@ def make_qr_image(data: str, box_size: int = 10, border: int = 2) -> BytesIO:
 
 # -----------------------------
 # Quiz content
-# Each option: (label, score)
 # -----------------------------
 @st.cache_data
 def load_quiz_standard():
@@ -82,7 +115,6 @@ def load_quiz_standard():
 
 @st.cache_data
 def load_quiz_beginner():
-    # Simpler wording for international students with little finance knowledge
     return [
         {"id": "q1", "question": "Q1. If you lose money, what do you do?",
          "options": [("Stop and avoid risk", 0), ("Wait and think", 2), ("Try again carefully", 4)]},
@@ -197,7 +229,7 @@ def portfolio_donut(portfolio: dict, title: str = "Sample Portfolio"):
         tooltip=["Asset:N", "Weight:Q"]
     ).properties(width=320, height=260, title=title)
 
-def contribution_bar(contrib: dict, title: str = "Why you got this result"):
+def contribution_bar(contrib: dict, title: str = "Answer Impact (Explainable)"):
     if not contrib:
         contrib = {"No data": 0}
 
@@ -222,29 +254,14 @@ MODE = st.sidebar.radio(
     index=0
 )
 
-if st.sidebar.button("🔄 Reset Quiz (救命鍵)"):
+if st.sidebar.button("🔄 Reset Quiz"):
     st.session_state.clear()
     st.rerun()
 
-st.sidebar.caption("Demo Mode ON = more stable for live demos.")
-
 # -----------------------------
-# App URL for QR (Cloud Secrets recommended)
+# App URL for QR
 # -----------------------------
 APP_URL = st.secrets.get("APP_URL", "http://localhost:8501")
-
-# Hide Streamlit chrome in demo mode (cleaner)
-if DEMO_MODE:
-    st.markdown(
-        """
-        <style>
-        #MainMenu {visibility: hidden;}
-        footer {visibility: hidden;}
-        header {visibility: hidden;}
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
 
 # -----------------------------
 # Main UI
@@ -252,13 +269,13 @@ if DEMO_MODE:
 st.title("💡 AI Investor Style Quiz")
 st.caption("Educational demo only — not financial advice.")
 
-with st.expander("📌 How to Play (1 min)"):
+with st.expander("📌 How to Play"):
     st.write(
         """
-1) Scan QR code (or open the link)  
-2) Answer 10 quick questions  
-3) Tap **Submit**  
-4) See your **Risk Score**, **Investor Type**, and **Charts** instantly  
+1) Scan QR code  
+2) Answer 10 questions  
+3) Submit  
+4) See charts & tips instantly  
 """
     )
 
@@ -267,31 +284,13 @@ st.subheader("📱 Scan to Play")
 st.image(make_qr_image(APP_URL), width=240)
 st.markdown(f"**Share link:** {APP_URL}")
 
-if "localhost" in APP_URL or "127.0.0.1" in APP_URL:
-    st.info(
-        "Your QR is pointing to localhost (only your computer can open it).\n\n"
-        "✅ For AI Fair: set APP_URL in Streamlit Cloud Secrets to your public https link."
-    )
-
 st.markdown("---")
 
-# Choose quiz set
 quiz = load_quiz_beginner() if MODE.startswith("Beginner") else load_quiz_standard()
 max_score = sum(max(opt[1] for opt in q["options"]) for q in quiz)
 
-# Demo: one-click result
-if DEMO_MODE:
-    cols = st.columns([1, 2, 3])
-    with cols[0]:
-        if st.button("⚡ Instant Demo Result"):
-            st.session_state.demo_answers = {q["id"]: q["options"][-1][0] for q in quiz}
-            st.session_state.force_submit = True
-            st.rerun()
-
-default_answers = st.session_state.get("demo_answers", {})
-
 # -----------------------------
-# Quiz Form (submit-based)
+# Quiz Form
 # -----------------------------
 with st.form("quiz_form"):
     st.subheader("✅ Take the Quiz")
@@ -299,63 +298,50 @@ with st.form("quiz_form"):
 
     for q in quiz:
         labels = [x[0] for x in q["options"]]
-        index = labels.index(default_answers[q["id"]]) if q["id"] in default_answers else 0
-        answers[q["id"]] = st.radio(q["question"], labels, index=index, key=f"radio_{q['id']}")
+        answers[q["id"]] = st.radio(q["question"], labels, index=0)
 
     submitted = st.form_submit_button("✅ Submit")
 
 # -----------------------------
-# Results (safe render)
+# Results
 # -----------------------------
-try:
-    do_submit = submitted or st.session_state.get("force_submit", False)
+if submitted:
+    total = 0
+    question_contrib = {}
 
-    if do_submit:
-        total = 0
-        question_contrib = {}
+    for q in quiz:
+        chosen_label = answers[q["id"]]
+        score_map = dict(q["options"])
+        s = score_map[chosen_label]
+        total += s
 
-        for q in quiz:
-            chosen_label = answers[q["id"]]
-            score_map = dict(q["options"])
-            s = score_map[chosen_label]   # 0/2/4
-            total += s
+        short_q = q["question"].split(". ", 1)[-1]
+        question_contrib[short_q] = s
 
-            short_q = q["question"].split(". ", 1)[-1]
-            question_contrib[short_q] = s
+    result = score_to_result(total, max_score)
+    risk_score = result["risk_score"]
 
-        result = score_to_result(total, max_score)
-        risk_score = result["risk_score"]
+    st.markdown("---")
+    st.header("🎯 Your Result")
 
-        st.markdown("---")
-        st.header("🎯 Your Result")
+    c1, c2 = st.columns([1, 1])
+    with c1:
+        st.metric("Risk Score", f"{risk_score}/100")
+    with c2:
+        st.write(f"**Investor Type:** {result['investor_type']}")
 
-        c1, c2 = st.columns([1, 1])
-        with c1:
-            st.metric("Risk Score", f"{risk_score}/100")
-        with c2:
-            st.write(f"**Investor Type:** {result['investor_type']}")
+    st.write(f"✅ **Strength:** {result['strength']}")
+    st.write(f"⚠️ **Watch out:** {result['watchout']}")
+    st.write(f"💡 **One action tip:** {result['tip']}")
 
-        st.write("")
-        st.write(f"✅ **Strength:** {result['strength']}")
-        st.write(f"⚠️ **Watch out:** {result['watchout']}")
-        st.write(f"💡 **One action tip:** {result['tip']}")
+    st.markdown("## 📊 Your Dashboard")
 
-        st.markdown("## 📊 Your Dashboard")
-        cc1, cc2 = st.columns([1, 1])
-        with cc1:
-            st.altair_chart(risk_gauge(risk_score, title="Risk Score"), use_container_width=True)
-        with cc2:
-            st.altair_chart(portfolio_donut(result["portfolio"], title="Sample Portfolio"), use_container_width=True)
+    cc1, cc2 = st.columns([1, 1])
+    with cc1:
+        st.altair_chart(risk_gauge(risk_score), use_container_width=True)
+    with cc2:
+        st.altair_chart(portfolio_donut(result["portfolio"]), use_container_width=True)
 
-        st.altair_chart(contribution_bar(question_contrib, title="Answer Impact (Explainable)"), use_container_width=True)
+    st.altair_chart(contribution_bar(question_contrib), use_container_width=True)
 
-        st.markdown("---")
-        st.caption("Made for AI Fair demo. Educational use only.")
-
-        # clear one-time flags
-        st.session_state.force_submit = False
-        st.session_state.demo_answers = {}
-
-except Exception:
-    st.error("Oops! Something went wrong. Please tap **Reset Quiz** and try again 🙏")
-    st.stop()
+    st.caption("Made for AI Fair demo. Educational use only.")
