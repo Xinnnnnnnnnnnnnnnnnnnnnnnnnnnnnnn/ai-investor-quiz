@@ -35,7 +35,7 @@ def make_qr_image(data: str, box_size: int = 10, border: int = 2) -> BytesIO:
     qr = qrcode.QRCode(box_size=box_size, border=border)
     qr.add_data(data)
     qr.make(fit=True)
-    
+    img = qr.make_image(fill_color="black", back_color="white")
 
     buf = BytesIO()
     img.save(buf, format="PNG")
