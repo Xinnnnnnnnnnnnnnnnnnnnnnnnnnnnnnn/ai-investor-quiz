@@ -86,18 +86,87 @@ st.divider()
 # ===============================
 
 questions = [
-    ("Q1. Market drops 20%. You...", ["Sell immediately", "Hold", "Buy more"]),
-    ("Q2. Investment goal?", ["Preserve capital", "Balanced growth", "Max growth"]),
-    ("Q3. Risk makes you feel...", ["Nervous", "Neutral", "Excited"]),
-    ("Q4. Portfolio style?", ["Stable", "Mixed", "Aggressive"]),
-    ("Q5. You get $1,000...", ["Save it", "Split", "Invest most"]),
-    ("Q6. Which sounds most like you?", ["Careful", "Balanced", "Bold"]),
-    ("Q7. Check results?", ["Daily", "Sometimes", "Rarely"]),
-    ("Q8. Friend says hot stock...", ["Ignore", "Research", "Try"]),
-    ("Q9. Market crash?", ["Scared", "Thoughtful", "Ready"]),
-    ("Q10. Main goal?", ["Protect", "Grow slowly", "Grow a lot"]),
+    {
+        "q": "You lose some money. What do you usually do?",
+        "options": [
+            ("Stop and avoid risk", 0),
+            ("Wait and think", 5),
+            ("Try again carefully", 10),
+        ],
+    },
+    {
+        "q": "How long are you okay leaving money invested?",
+        "options": [
+            ("Less than 1 year", 0),
+            ("2–3 years", 5),
+            ("5+ years", 10),
+        ],
+    },
+    {
+        "q": "Which feels safest to you?",
+        "options": [
+            ("Keep cash", 0),
+            ("Mix safe + risky", 5),
+            ("Mostly growth assets", 10),
+        ],
+    },
+    {
+        "q": "When prices move up and down, you feel…",
+        "options": [
+            ("Nervous", 0),
+            ("OK if I understand", 5),
+            ("Calm or curious", 10),
+        ],
+    },
+    {
+        "q": "You get $1,000. What do you do?",
+        "options": [
+            ("Save it", 0),
+            ("Save some, invest some", 5),
+            ("Invest most", 10),
+        ],
+    },
+    {
+        "q": "Which sounds most like you?",
+        "options": [
+            ("Careful", 0),
+            ("Balanced", 5),
+            ("Bold", 10),
+        ],
+    },
+    {
+        "q": "How often would you check results?",
+        "options": [
+            ("Every day", 10),
+            ("Sometimes", 5),
+            ("Not often", 0),
+        ],
+    },
+    {
+        "q": "A friend says: “This will grow fast!” You…",
+        "options": [
+            ("Ignore it", 0),
+            ("Research first", 5),
+            ("Research and try", 10),
+        ],
+    },
+    {
+        "q": "Markets fall suddenly. You feel…",
+        "options": [
+            ("Scared", 0),
+            ("Thoughtful", 5),
+            ("Ready to act", 10),
+        ],
+    },
+    {
+        "q": "Your main goal is…",
+        "options": [
+            ("Protect money", 0),
+            ("Grow slowly", 5),
+            ("Grow a lot", 10),
+        ],
+    },
 ]
-
 answers = []
 score_map = [0, 5, 10]
 
