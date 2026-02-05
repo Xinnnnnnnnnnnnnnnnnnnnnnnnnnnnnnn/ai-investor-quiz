@@ -341,4 +341,4 @@ if st.session_state.submitted:
 
     # ---- AI Fair reset ----
     st.write("")
-    col1, col2 = st.columns([1, 2
+    col1, col2 = st.columns([1, 2])
