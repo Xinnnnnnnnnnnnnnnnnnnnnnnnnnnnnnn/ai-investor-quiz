@@ -35,7 +35,7 @@ div.stButton > button {
 .plotly, .js-plotly-plot { background: white !important; }
 section.main > div { background-color: white !important; }
 
-/* 小徽章感 */
+/* Badge */
 .badge {
     display: inline-block;
     border: 1.5px solid black;
@@ -98,6 +98,7 @@ st.divider()
 # ===============================
 def compute_score(answers_idx):
     # answers_idx: list of option indices (0/1/2)
+    # Convert each option index into points (0/5/10)
     return sum(score_map[i] for i in answers_idx if i is not None)
 
 def get_result(risk_score):
@@ -119,6 +120,41 @@ def reset_all():
     st.session_state.stage = "intro"
     st.session_state.q_index = 0
     st.session_state.answers = [None] * N
+
+def make_risk_gauge(score: int):
+    """
+    Engine / speedometer-like gauge using Plotly Indicator.
+    """
+    fig = go.Figure(
+        go.Indicator(
+            mode="gauge+number",
+            value=score,
+            number={"font": {"size": 48}, "suffix": "/100"},
+            title={"text": "Risk Score", "font": {"size": 20}},
+            gauge={
+                "axis": {"range": [0, 100], "tickwidth": 1},
+                "bar": {"thickness": 0.25},
+                "steps": [
+                    {"range": [0, 35], "color": "rgba(0,0,0,0.08)"},
+                    {"range": [35, 70], "color": "rgba(0,0,0,0.14)"},
+                    {"range": [70, 100], "color": "rgba(0,0,0,0.20)"},
+                ],
+                "threshold": {
+                    "line": {"color": "black", "width": 4},
+                    "thickness": 0.75,
+                    "value": score
+                }
+            }
+        )
+    )
+    fig.update_layout(
+        paper_bgcolor="white",
+        plot_bgcolor="white",
+        font={"color": "black"},
+        margin=dict(l=20, r=20, t=60, b=20),
+        height=320
+    )
+    return fig
 
 # ===============================
 # INTRO PAGE
@@ -145,11 +181,11 @@ This is a quick demo showing how AI-style logic can translate human choices into
         if st.button("🚀 Start", use_container_width=True):
             st.session_state.stage = "quiz"
             st.session_state.q_index = 0
-            st.experimental_rerun()
+            st.rerun()
     with col2:
         if st.button("🧹 Clear (optional)", use_container_width=True):
             reset_all()
-            st.experimental_rerun()
+            st.rerun()
 
 # ===============================
 # QUIZ PAGE (ONE QUESTION PER STEP)
@@ -159,7 +195,7 @@ elif st.session_state.stage == "quiz":
     q_text, opts = questions[i]
 
     # Progress UI
-    progress = i / N  # 0.0 ~ 0.9
+    progress = (i + 1) / N
     st.markdown('<div class="badge">🎪 AI Fair Challenge</div>', unsafe_allow_html=True)
     st.write(f"### ✅ Question {i+1} / {N}")
     st.progress(progress)
@@ -180,93 +216,26 @@ elif st.session_state.stage == "quiz":
     chosen_idx = opts.index(choice)
     st.session_state.answers[i] = chosen_idx
 
-    # Navigation buttons
+    # Navigation buttons (NO score shown)
     c1, c2, c3 = st.columns([1, 1, 1])
-
     with c1:
         back_disabled = (i == 0)
         if st.button("⬅️ Back", disabled=back_disabled, use_container_width=True):
             st.session_state.q_index = max(0, i - 1)
-            st.experimental_rerun()
+            st.rerun()
 
     with c2:
-        # Show current score for fun (optional, adds game feel)
-        running_score = compute_score(st.session_state.answers)
-        st.metric("Current Score", f"{running_score}")
+        st.write("")  # spacing
 
     with c3:
-        # Next or Finish
         if i < N - 1:
             if st.button("Next ➡️", use_container_width=True):
                 st.session_state.q_index = i + 1
-                st.experimental_rerun()
+                st.rerun()
         else:
             if st.button("🏁 Submit & See Result", use_container_width=True):
                 st.session_state.stage = "result"
-                st.experimental_rerun()
+                st.rerun()
 
 # ===============================
 # RESULT PAGE
-# ===============================
-else:
-    answers_idx = st.session_state.answers
-
-    # Safety: if somehow not all answered, fill missing with middle option
-    answers_idx = [a if a is not None else 1 for a in answers_idx]
-    risk_score = compute_score(answers_idx)
-
-    investor_type, description, allocation = get_result(risk_score)
-
-    st.markdown('<div class="badge">🎪 AI Fair Result</div>', unsafe_allow_html=True)
-    st.header("📊 Your Result")
-    st.subheader(f"Investor Type: {investor_type}")
-    st.subheader(f"Risk Score: {risk_score}/100")
-
-    st.write("### 🧠 Profile Summary")
-    st.write(description)
-
-    # Donut Chart
-    fig = go.Figure(
-        data=[
-            go.Pie(
-                labels=list(allocation.keys()),
-                values=list(allocation.values()),
-                hole=0.6,
-                textinfo="percent"
-            )
-        ]
-    )
-    fig.update_layout(
-        paper_bgcolor="white",
-        plot_bgcolor="white",
-        font=dict(color="black", size=16),
-        legend=dict(font=dict(color="black")),
-    )
-
-    st.plotly_chart(fig, use_container_width=True)
-
-    # AI Fair Summary Box
-    st.write("### 🎯 AI Fair Quick Explanation")
-    st.info(f"""
-This user is classified as **{investor_type}**.
-
-• Risk tolerance level is **{risk_score}/100**  
-• Decision style: {description}  
-• Suggested portfolio focuses on balance between growth and stability  
-
-👉 This demo shows how AI can translate behavior into financial profiles.
-""")
-
-    st.divider()
-    colA, colB = st.columns([1, 1])
-    with colA:
-        if st.button("🔄 Reset for next person", use_container_width=True):
-            reset_all()
-            st.experimental_rerun()
-    with colB:
-        # optional: allow replay without clearing intro
-        if st.button("🎮 Play again", use_container_width=True):
-            st.session_state.stage = "quiz"
-            st.session_state.q_index = 0
-            st.session_state.answers = [None] * N
-            st.experimental_rerun()
