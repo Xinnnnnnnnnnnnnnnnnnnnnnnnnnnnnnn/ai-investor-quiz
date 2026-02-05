@@ -98,7 +98,6 @@ st.divider()
 # ===============================
 def compute_score(answers_idx):
     # answers_idx: list of option indices (0/1/2)
-    # Convert each option index into points (0/5/10)
     return sum(score_map[i] for i in answers_idx if i is not None)
 
 def get_result(risk_score):
@@ -122,9 +121,7 @@ def reset_all():
     st.session_state.answers = [None] * N
 
 def make_risk_gauge(score: int):
-    """
-    Engine / speedometer-like gauge using Plotly Indicator.
-    """
+    """Engine / speedometer-like gauge using Plotly Indicator."""
     fig = go.Figure(
         go.Indicator(
             mode="gauge+number",
@@ -153,6 +150,26 @@ def make_risk_gauge(score: int):
         font={"color": "black"},
         margin=dict(l=20, r=20, t=60, b=20),
         height=320
+    )
+    return fig
+
+def make_donut(allocation: dict):
+    fig = go.Figure(
+        data=[
+            go.Pie(
+                labels=list(allocation.keys()),
+                values=list(allocation.values()),
+                hole=0.6,
+                textinfo="percent",
+            )
+        ]
+    )
+    fig.update_layout(
+        paper_bgcolor="white",
+        plot_bgcolor="white",
+        font=dict(color="black", size=16),
+        legend=dict(font=dict(color="black")),
+        margin=dict(l=20, r=20, t=20, b=20),
     )
     return fig
 
@@ -200,24 +217,22 @@ elif st.session_state.stage == "quiz":
     st.write(f"### ✅ Question {i+1} / {N}")
     st.progress(progress)
 
-    # Current answer default
+    # No default selection (IMPORTANT: no red dot until user clicks)
     current = st.session_state.answers[i]
-    if current is None:
-        current = 1  # default middle option
 
     choice = st.radio(
         q_text,
         opts,
-        index=current,
+        index=current if current is not None else None,
         key=f"radio_{i}"
     )
 
-    # Save chosen index
-    chosen_idx = opts.index(choice)
-    st.session_state.answers[i] = chosen_idx
+    # Save chosen index ONLY if user has selected something
+    if choice is not None:
+        st.session_state.answers[i] = opts.index(choice)
 
-    # Navigation buttons (NO score shown)
     c1, c2, c3 = st.columns([1, 1, 1])
+
     with c1:
         back_disabled = (i == 0)
         if st.button("⬅️ Back", disabled=back_disabled, use_container_width=True):
@@ -228,14 +243,62 @@ elif st.session_state.stage == "quiz":
         st.write("")  # spacing
 
     with c3:
+        # Disable Next until user answers current question
+        answered = st.session_state.answers[i] is not None
+
         if i < N - 1:
-            if st.button("Next ➡️", use_container_width=True):
+            if st.button("Next ➡️", disabled=not answered, use_container_width=True):
                 st.session_state.q_index = i + 1
                 st.rerun()
         else:
-            if st.button("🏁 Submit & See Result", use_container_width=True):
+            if st.button("🏁 Submit & See Result", disabled=not answered, use_container_width=True):
                 st.session_state.stage = "result"
                 st.rerun()
 
 # ===============================
 # RESULT PAGE
+# ===============================
+else:
+    # Safety: if somehow missing, fill with middle option
+    answers_idx = [a if a is not None else 1 for a in st.session_state.answers]
+    risk_score = compute_score(answers_idx)
+
+    investor_type, description, allocation = get_result(risk_score)
+
+    st.markdown('<div class="badge">🎪 AI Fair Result</div>', unsafe_allow_html=True)
+    st.header("📊 Your Result")
+
+    st.subheader(f"Investor Type: {investor_type}")
+
+    # Gauge (engine-like)
+    st.write("### 🚗 Risk Engine Meter")
+    st.plotly_chart(make_risk_gauge(risk_score), use_container_width=True)
+
+    # Donut chart (portfolio)
+    st.write("### 🥯 Suggested Portfolio (Demo)")
+    st.plotly_chart(make_donut(allocation), use_container_width=True)
+
+    # AI Fair Summary Box
+    st.write("### 🎯 AI Fair Quick Explanation")
+    st.info(f"""
+This user is classified as **{investor_type}**.
+
+• Risk tolerance level is **{risk_score}/100**  
+• Decision style: {description}  
+• Suggested portfolio focuses on balance between growth and stability  
+
+👉 This demo shows how AI can translate behavior into financial profiles.
+""")
+
+    st.divider()
+    colA, colB = st.columns([1, 1])
+    with colA:
+        if st.button("🔄 Reset for next person", use_container_width=True):
+            reset_all()
+            st.rerun()
+    with colB:
+        if st.button("🎮 Play again", use_container_width=True):
+            st.session_state.stage = "quiz"
+            st.session_state.q_index = 0
+            st.session_state.answers = [None] * N
+            st.rerun()
