@@ -1,9 +1,9 @@
 import streamlit as st
 import plotly.graph_objects as go
-import plotly.express as px
+import pandas as pd
 
 # -----------------------------
-# Page + Global Style (White BG + Black Text)
+# Page config
 # -----------------------------
 st.set_page_config(
     page_title="AI Investor Style Quiz",
@@ -11,315 +11,334 @@ st.set_page_config(
     layout="centered",
 )
 
+# -----------------------------
+# Global CSS (force white bg + black text, including buttons)
+# -----------------------------
 st.markdown(
     """
-<style>
-/* App background */
-html, body, [data-testid="stAppViewContainer"]{
-    background: #ffffff !important;
-    color: #111111 !important;
-}
+    <style>
+    /* App background */
+    .stApp {
+        background-color: #ffffff !important;
+        color: #111111 !important;
+    }
 
-/* Main text */
-[data-testid="stMarkdownContainer"] p,
-[data-testid="stMarkdownContainer"] li,
-[data-testid="stMarkdownContainer"] span,
-label, .stRadio label, .stSelectbox label, .stTextInput label {
-    color: #111111 !important;
-}
+    /* Main text */
+    html, body, [class*="css"]  {
+        color: #111111 !important;
+    }
 
-/* Sidebar (if any) */
-[data-testid="stSidebar"]{
-    background: #ffffff !important;
-    color: #111111 !important;
-}
+    /* Headers */
+    h1, h2, h3, h4, h5, h6, p, li, span, label, div {
+        color: #111111 !important;
+    }
 
-/* Buttons: force white bg + black text */
-.stButton > button {
-    background: #ffffff !important;
-    color: #111111 !important;
-    border: 1px solid #111111 !important;
-    border-radius: 10px !important;
-    padding: 0.6rem 1rem !important;
-    font-weight: 600 !important;
-}
-.stButton > button:hover {
-    background: #f2f2f2 !important;
-    color: #111111 !important;
-}
+    /* Sidebar (if any) */
+    section[data-testid="stSidebar"] {
+        background-color: #ffffff !important;
+        color: #111111 !important;
+    }
 
-/* Inputs borders */
-div[data-baseweb="select"] > div,
-input, textarea {
-    border: 1px solid #cccccc !important;
-}
+    /* Radio labels */
+    div[role="radiogroup"] label {
+        color: #111111 !important;
+    }
 
-/* Remove dark leftovers */
-[data-testid="stHeader"]{
-    background: rgba(255,255,255,0) !important;
-}
-</style>
-""",
+    /* Buttons */
+    .stButton > button {
+        background-color: #ffffff !important;
+        color: #111111 !important;
+        border: 1px solid #111111 !important;
+        border-radius: 10px !important;
+        padding: 0.5rem 0.9rem !important;
+        font-weight: 600 !important;
+    }
+    .stButton > button:hover {
+        background-color: #f3f3f3 !important;
+        color: #111111 !important;
+        border: 1px solid #111111 !important;
+    }
+
+    /* Checkbox label */
+    .stCheckbox label {
+        color: #111111 !important;
+    }
+
+    /* Fix markdown links */
+    a { color: #1a73e8 !important; }
+
+    </style>
+    """,
     unsafe_allow_html=True,
 )
 
 # -----------------------------
-# Helpers: Force Plotly White + Black Fonts
+# Plotly helpers (IMPORTANT: gauge cannot use update_xaxes/yaxes)
 # -----------------------------
-def apply_plotly_white(fig: go.Figure) -> go.Figure:
+def apply_plotly_white_cartesian(fig: go.Figure) -> go.Figure:
+    """For bar / line / scatter / pie (charts that may have axes)"""
     fig.update_layout(
         template="plotly_white",
         paper_bgcolor="white",
         plot_bgcolor="white",
         font=dict(color="#111111", size=14),
         title=dict(font=dict(color="#111111")),
-        legend=dict(
-            font=dict(color="#111111"),
-            bgcolor="rgba(0,0,0,0)",
-            bordercolor="rgba(0,0,0,0)",
-        ),
+        legend=dict(font=dict(color="#111111"), bgcolor="rgba(0,0,0,0)"),
         margin=dict(l=40, r=40, t=60, b=40),
     )
-    fig.update_xaxes(
-        color="#111111",
-        tickfont=dict(color="#111111"),
-        titlefont=dict(color="#111111"),
-        gridcolor="#eaeaea",
-        zerolinecolor="#eaeaea",
-    )
-    fig.update_yaxes(
-        color="#111111",
-        tickfont=dict(color="#111111"),
-        titlefont=dict(color="#111111"),
-        gridcolor="#eaeaea",
-        zerolinecolor="#eaeaea",
+
+    # Only apply axes updates if the figure has axes
+    # (Pie technically doesn't need, but safe; it will just ignore)
+    try:
+        fig.update_xaxes(
+            tickfont=dict(color="#111111"),
+            titlefont=dict(color="#111111"),
+            gridcolor="#eaeaea",
+            zerolinecolor="#eaeaea",
+        )
+        fig.update_yaxes(
+            tickfont=dict(color="#111111"),
+            titlefont=dict(color="#111111"),
+            gridcolor="#eaeaea",
+            zerolinecolor="#eaeaea",
+        )
+    except Exception:
+        pass
+
+    return fig
+
+
+def apply_plotly_white_gauge(fig: go.Figure) -> go.Figure:
+    """For indicator / gauge charts (NO x/y axes)"""
+    fig.update_layout(
+        template="plotly_white",
+        paper_bgcolor="white",
+        font=dict(color="#111111"),
+        margin=dict(l=40, r=40, t=40, b=40),
     )
     return fig
 
 
 # -----------------------------
-# Quiz Data (10 Questions, each option has score)
-# You can edit wording/options freely.
+# Session state init
 # -----------------------------
-QUESTIONS = [
-    {
-        "id": 1,
-        "question": "Q1. Your investment drops 20%. What do you do?",
-        "options": [("Sell to stop the loss", 5), ("Wait and see", 10), ("Buy more (if plan is solid)", 15)],
-    },
-    {
-        "id": 2,
-        "question": "Q2. Your friend says: “This is a sure win!” You…",
-        "options": [("Avoid it", 5), ("Research first", 10), ("Try a small amount", 15)],
-    },
-    {
-        "id": 3,
-        "question": "Q3. Which feels most comfortable?",
-        "options": [("Stable and predictable", 5), ("Balanced growth", 10), ("High growth (accept swings)", 15)],
-    },
-    {
-        "id": 4,
-        "question": "Q4. How long do you want to hold an investment?",
-        "options": [("Short-term", 15), ("Mid-term", 10), ("Long-term", 5)],
-    },
-    {
-        "id": 5,
-        "question": "Q5. You get $1,000. What do you do?",
-        "options": [("Save it", 5), ("Save some, invest some", 10), ("Invest most", 15)],
-    },
-    {
-        "id": 6,
-        "question": "Q6. Which sounds most like you?",
-        "options": [("Careful", 5), ("Balanced", 10), ("Bold", 15)],
-    },
-    {
-        "id": 7,
-        "question": "Q7. How often would you check results?",
-        "options": [("Every day", 15), ("Sometimes", 10), ("Not often", 5)],
-    },
-    {
-        "id": 8,
-        "question": "Q8. Prices go up quickly. You…",
-        "options": [("Feel FOMO and chase", 15), ("Stay calm and follow plan", 10), ("Take profit carefully", 5)],
-    },
-    {
-        "id": 9,
-        "question": "Q9. If markets fall suddenly, you feel…",
-        "options": [("Scared", 5), ("Thoughtful", 10), ("Ready to act", 15)],
-    },
-    {
-        "id": 10,
-        "question": "Q10. Your main goal is…",
-        "options": [("Protect money", 5), ("Grow slowly", 10), ("Grow a lot", 15)],
-    },
-]
-
-# Score range: min 50, max 150 (10 questions * 5~15)
-MIN_SCORE = 10 * 5
-MAX_SCORE = 10 * 15
-
-def normalize_to_0_100(raw_score: int) -> int:
-    raw_score = max(MIN_SCORE, min(MAX_SCORE, raw_score))
-    return round((raw_score - MIN_SCORE) / (MAX_SCORE - MIN_SCORE) * 100)
-
-def allocation_from_risk(risk_0_100: int) -> dict:
-    # Example mapping (edit as you like)
-    if risk_0_100 <= 33:
-        return {"Stocks (Index)": 30, "Bonds": 50, "Cash": 20}
-    elif risk_0_100 <= 66:
-        return {"Stocks (Index)": 55, "Bonds": 35, "Cash": 10}
-    else:
-        return {"Stocks (Index)": 70, "Bonds": 20, "Cash": 10}
-
-def investor_type_from_risk(risk_0_100: int) -> str:
-    if risk_0_100 <= 33:
-        return "Conservative"
-    elif risk_0_100 <= 66:
-        return "Balanced"
-    else:
-        return "Growth"
-
-# -----------------------------
-# Session State
-# -----------------------------
-if "answers" not in st.session_state:
-    st.session_state.answers = {}  # {qid: (label, score)}
-
 if "submitted" not in st.session_state:
     st.session_state.submitted = False
 
+if "answers" not in st.session_state:
+    st.session_state.answers = {}
+
 # -----------------------------
-# UI
+# App title
 # -----------------------------
 st.title("💡 AI Investor Style Quiz")
 st.caption("Educational demo only — not financial advice.")
 
-# AI Fair mode reset
-col_a, col_b = st.columns([1, 1])
-with col_a:
-    if st.button("🔄 Reset for next person"):
-        st.session_state.answers = {}
-        st.session_state.submitted = False
-        st.rerun()
-with col_b:
-    st.markdown("AI Fair mode: Reset after each user ✅")
+st.subheader("📱 Take the Quiz")
+st.write("Answer 10 simple questions. You'll get a risk score, investor type, and a sample portfolio.")
 
-st.divider()
-st.header("✅ Take the Quiz")
+# -----------------------------
+# Question bank (simple version)
+# Each option contributes points (0-10). Total mapped to 0-100.
+# -----------------------------
+QUESTIONS = [
+    ("Q1. Your investment drops 20%. What do you do?",
+     [("Sell to stop the loss", 0),
+      ("Wait and see", 5),
+      ("Buy more (if you believe in it)", 10)]),
 
-# Render questions
-for q in QUESTIONS:
-    qid = q["id"]
-    labels = [opt[0] for opt in q["options"]]
-    label_to_score = {opt[0]: opt[1] for opt in q["options"]}
+    ("Q2. You prefer investments that are…",
+     [("Very stable", 0),
+      ("Some risk, some stability", 5),
+      ("High growth potential", 10)]),
 
-    default_index = 0
-    if qid in st.session_state.answers:
-        prev_label = st.session_state.answers[qid][0]
-        if prev_label in labels:
-            default_index = labels.index(prev_label)
+    ("Q3. How long can you hold an investment?",
+     [("Less than 1 year", 0),
+      ("1–3 years", 5),
+      ("3+ years", 10)]),
 
-    choice = st.radio(
-        q["question"],
-        options=labels,
-        index=default_index,
-        key=f"q_{qid}",
-    )
+    ("Q4. If the market is very volatile, you…",
+     [("Feel stressed and avoid it", 0),
+      ("Stay cautious", 5),
+      ("Feel excited / see opportunity", 10)]),
 
-    st.session_state.answers[qid] = (choice, label_to_score[choice])
+    ("Q5. You get $1,000. What do you do?",
+     [("Save it", 0),
+      ("Save some, invest some", 5),
+      ("Invest most", 10)]),
 
-st.divider()
+    ("Q6. Which sounds most like you?",
+     [("Careful", 0),
+      ("Balanced", 5),
+      ("Bold", 10)]),
 
-# Submit
-if st.button("✅ Submit"):
+    ("Q7. How often would you check results?",
+     [("Every day", 0),
+      ("Sometimes", 5),
+      ("Not often", 10)]),
+
+    ("Q8. A friend says: “This will grow fast!” You…",
+     [("Ignore it", 0),
+      ("Research first", 5),
+      ("Research and try", 10)]),
+
+    ("Q9. If markets fall suddenly, you feel…",
+     [("Scared", 0),
+      ("Thoughtful", 5),
+      ("Ready to act", 10)]),
+
+    ("Q10. Your main goal is…",
+     [("Protect money", 0),
+      ("Grow slowly", 5),
+      ("Grow a lot", 10)]),
+]
+
+# -----------------------------
+# Render quiz
+# -----------------------------
+with st.form("quiz_form"):
+    for q_text, options in QUESTIONS:
+        labels = [x[0] for x in options]
+        # default = first option placeholder not needed; keep stable
+        choice = st.radio(q_text, labels, key=q_text)
+        st.session_state.answers[q_text] = choice
+
+    submitted = st.form_submit_button("✅ Submit")
+
+# -----------------------------
+# Scoring logic
+# -----------------------------
+def get_points(q_text: str, choice: str) -> int:
+    for qt, opts in QUESTIONS:
+        if qt == q_text:
+            for label, pts in opts:
+                if label == choice:
+                    return pts
+    return 0
+
+def calc_risk_score(answers: dict) -> int:
+    # Each question gives 0/5/10, total 0-100
+    total = 0
+    for q_text, choice in answers.items():
+        total += get_points(q_text, choice)
+    # total is already 0-100 because 10 questions * 10 max = 100
+    return int(total)
+
+def investor_type(score: int) -> str:
+    if score <= 33:
+        return "Conservative"
+    elif score <= 66:
+        return "Balanced"
+    else:
+        return "Growth"
+
+def portfolio_by_type(inv_type: str):
+    # Simple illustrative allocations
+    if inv_type == "Conservative":
+        return {"Bonds": 60, "Stocks (Index)": 25, "Cash": 15}
+    if inv_type == "Balanced":
+        return {"Bonds": 40, "Stocks (Index)": 40, "Cash": 20}
+    return {"Bonds": 20, "Stocks (Index)": 70, "Cash": 10}
+
+def build_contrib_df(answers: dict) -> pd.DataFrame:
+    rows = []
+    for i, (q_text, _) in enumerate(QUESTIONS, start=1):
+        choice = answers.get(q_text, "")
+        pts = get_points(q_text, choice)
+        # convert to 0-100 contribution (0/50/100) for "explainable" bar
+        contrib = int((pts / 10) * 100)
+        rows.append({"Question": f"{i}", "Contribution": contrib, "Choice": choice})
+    df = pd.DataFrame(rows)
+    return df
+
+# -----------------------------
+# After submit: show dashboard
+# -----------------------------
+if submitted:
     st.session_state.submitted = True
 
-# -----------------------------
-# Results Dashboard
-# -----------------------------
 if st.session_state.submitted:
-    # Compute scores
-    raw_total = sum(v[1] for v in st.session_state.answers.values())
-    risk_score = normalize_to_0_100(raw_total)
-    inv_type = investor_type_from_risk(risk_score)
-    alloc = allocation_from_risk(risk_score)
+    answers = st.session_state.answers
+    risk_score = calc_risk_score(answers)
+    inv_type = investor_type(risk_score)
+    alloc = portfolio_by_type(inv_type)
+    contrib_df = build_contrib_df(answers)
 
+    st.divider()
     st.header("📊 Your Dashboard")
     st.write(f"**Investor Type:** {inv_type}")
     st.write(f"**Risk Score:** {risk_score}/100")
 
-    # 1) Gauge (Risk Score)
+    # ---- Gauge (INDICATOR) ----
     gauge = go.Figure(
         go.Indicator(
             mode="gauge+number",
             value=risk_score,
-            number={"font": {"color": "#111111", "size": 48}},
+            number={"font": {"color": "#111111", "size": 54}},
             gauge={
                 "axis": {"range": [0, 100], "tickcolor": "#111111"},
                 "bar": {"color": "#1f77b4"},
                 "bgcolor": "white",
                 "borderwidth": 1,
-                "bordercolor": "#cccccc",
+                "bordercolor": "#dddddd",
                 "steps": [
-                    {"range": [0, 33], "color": "#d9edf7"},
-                    {"range": [33, 66], "color": "#bcdff5"},
-                    {"range": [66, 100], "color": "#f8d7da"},
+                    {"range": [0, 33], "color": "#cfe2f3"},
+                    {"range": [33, 66], "color": "#9fc5e8"},
+                    {"range": [66, 100], "color": "#ea9999"},
                 ],
-                "threshold": {
-                    "line": {"color": "#111111", "width": 6},
-                    "thickness": 0.75,
-                    "value": risk_score,
-                },
             },
         )
     )
-    gauge.update_layout(height=420)
-    gauge = apply_plotly_white(gauge)
+    gauge = apply_plotly_white_gauge(gauge)
     st.plotly_chart(gauge, use_container_width=True)
 
-    # 2) Donut (Allocation)
-    alloc_labels = list(alloc.keys())
-    alloc_values = list(alloc.values())
-    donut = px.pie(
-        names=alloc_labels,
-        values=alloc_values,
-        hole=0.60,
-    )
-    donut.update_traces(
-        textposition="inside",
-        textfont=dict(color="#111111", size=16),
+    # ---- Donut portfolio ----
+    labels = list(alloc.keys())
+    values = list(alloc.values())
+
+    donut = go.Figure(
+        data=[
+            go.Pie(
+                labels=labels,
+                values=values,
+                hole=0.6,
+                textinfo="percent",
+                textfont=dict(color="#111111", size=16),
+            )
+        ]
     )
     donut.update_layout(
-        title="Suggested Sample Allocation (Demo)",
+        title="Sample Portfolio (Illustrative)",
         showlegend=True,
     )
-    donut = apply_plotly_white(donut)
+    donut = apply_plotly_white_cartesian(donut)
     st.plotly_chart(donut, use_container_width=True)
 
-    # 3) Answer Impact (Explainable) — per question contribution (0-100 scale)
-    # Convert each selected option score -> 0~100 impact
-    contrib = []
-    for q in QUESTIONS:
-        qid = q["id"]
-        picked_score = st.session_state.answers[qid][1]
-        impact_0_100 = round((picked_score - 5) / (15 - 5) * 100)
-        contrib.append({"Question": f"{qid}", "Impact": impact_0_100})
+    # ---- Answer Impact (Explainable) ----
+    st.subheader("📈 Answer Impact (Explainable)")
+    # show in descending order to make it more readable
+    plot_df = contrib_df.sort_values("Contribution", ascending=True)
 
-    df = contrib
-    bar = px.bar(
-        df,
-        x="Impact",
-        y="Question",
-        orientation="h",
-        title="Answer Impact (Explainable)",
-        range_x=[0, 100],
+    bar = go.Figure(
+        data=[
+            go.Bar(
+                x=plot_df["Contribution"],
+                y=plot_df["Question"],
+                orientation="h",
+                text=plot_df["Contribution"].astype(str),
+                textposition="outside",
+                textfont=dict(color="#111111"),
+            )
+        ]
     )
     bar.update_layout(
         xaxis_title="Contribution (0–100)",
-        yaxis_title="Question",
+        yaxis_title="Question #",
+        margin=dict(l=40, r=40, t=60, b=40),
     )
-    bar.update_traces(marker_line_width=0)
-    bar = apply_plotly_white(bar)
+    bar = apply_plotly_white_cartesian(bar)
     st.plotly_chart(bar, use_container_width=True)
 
-    st.caption("© Demo project for AI Fair — Casey")
+    # ---- AI Fair reset ----
+    st.write("")
+    col1, col2 = st.columns([1, 2
