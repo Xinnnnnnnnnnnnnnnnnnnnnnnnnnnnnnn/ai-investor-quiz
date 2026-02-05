@@ -86,16 +86,16 @@ st.divider()
 # ===============================
 
 questions = [
-    ("Q1. Market drops 20%. You...", ["Sell immediately", "Hold", "Buy more"]),
-    ("Q2. Investment goal?", ["Preserve capital", "Balanced growth", "Max growth"]),
-    ("Q3. Risk makes you feel...", ["Nervous", "Neutral", "Excited"]),
-    ("Q4. Portfolio style?", ["Stable", "Mixed", "Aggressive"]),
-    ("Q5. You get $1,000...", ["Save it", "Split", "Invest most"]),
+    ("Q1. If you lose money, what do you usaually do?", ["Stop and avoid risk", "Wait and think", "Try again carefully"]),
+    ("Q2. How long are you okay leaving money invested?", ["Less than 1 year", "2-3 years", "5+ years"]),
+    ("Q3. Which feels safest to you?", ["Keep cash", "Mix safe + risky", "Mostly growth assets"]),
+    ("Q4. When prices move up and down, you feel...", ["Nervous", "OK if I understand", "Calm or curious"]),
+    ("Q5. You get $10,000...", ["Save it", "Save some, invest some", "Invest most"]),
     ("Q6. Which sounds most like you?", ["Careful", "Balanced", "Bold"]),
-    ("Q7. Check results?", ["Daily", "Sometimes", "Rarely"]),
-    ("Q8. Friend says hot stock...", ["Ignore", "Research", "Try"]),
-    ("Q9. Market crash?", ["Scared", "Thoughtful", "Ready"]),
-    ("Q10. Main goal?", ["Protect", "Grow slowly", "Grow a lot"]),
+    ("Q7. How often would you check results?", ["Every day", "Sometimes", "Not often"]),
+    ("Q8. A friends says;"This will grow fast!" You...", ["Ignore it", "Research first", "Research try"]),
+    ("Q9. Markets fall suddenly. You feel...", ["Scared", "Thoughtful", "Ready to act"]),
+    ("Q10. Your main goal is...", ["Protect money", "Grow slowly", "Grow a lot"]),
 ]
 
 answers = []
