@@ -93,7 +93,7 @@ questions = [
     ("Q5. You get $10,000...", ["Save it", "Save some, invest some", "Invest most"]),
     ("Q6. Which sounds most like you?", ["Careful", "Balanced", "Bold"]),
     ("Q7. How often would you check results?", ["Every day", "Sometimes", "Not often"]),
-    ("Q8. A friends says:"This will grow fast!" You...", ["Ignore it", "Research first", "Research try"]),
+    ("Q8. A friends says hot stock,You...", ["Ignore it", "Research first", "Research try"]),
     ("Q9. Markets fall suddenly. You feel...", ["Scared", "Thoughtful", "Ready to act"]),
     ("Q10. Your main goal is...", ["Protect money", "Grow slowly", "Grow a lot"]),
 ]
